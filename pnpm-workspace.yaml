@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+
+catalog:
+  vite: 8.3.0
+
+onlyBuiltDependencies:
+  - '@nestjs/core'

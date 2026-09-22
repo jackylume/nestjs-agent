@@ -1,0 +1,12 @@
+@layer theme, base, antd, components, utilities;
+@import 'tailwindcss';
+
+@layer base {
+  body {
+    margin: 0;
+    min-width: 320px;
+    background: var(--color-slate-50);
+    font-family: system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+}
