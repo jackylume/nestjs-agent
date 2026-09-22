@@ -2,22 +2,24 @@
 
 基于 pnpm workspace 的 TypeScript monorepo。React 负责前端，NestJS 提供 API，PostgreSQL 存储数据。
 
+仓库地址：[jackylume/nestjs-agent](https://github.com/jackylume/nestjs-agent)。当前包含前端页面与请求基建、Token 状态管理、API 存活检查和数据库连通检查，尚未实现业务接口、登录鉴权或数据库迁移。
+
 ## 技术版本
 
-版本于 2026-09-21 从 npm registry 和 Node.js 官方发行列表核实，依赖使用精确版本并由 `pnpm-lock.yaml` 锁定。
+版本以仓库中的 `mise.toml`、各包 `package.json`、`pnpm-workspace.yaml` 和 `compose.yaml` 为准，依赖使用精确版本并由 `pnpm-lock.yaml` 锁定。
 
-前端基建依赖于 2026-09-22 核实并接入：alova 3.5.5、React Router 8.4.0、Tailwind CSS 4.3.3、Ant Design 6.6.5、Vitest 5.0.1。
+前端基建使用 alova 3.5.5、React Router 8.4.0、Tailwind CSS 4.3.3、Ant Design 6.6.5、Zustand 5.0.15 和 Vitest 5.0.1。
 
-| 工具           | 版本                             |
-| -------------- | -------------------------------- |
-| Node.js        | 22.23.2（22 系列当前最新正式版） |
-| pnpm           | 10.34.5（10 系列当前最新正式版） |
-| TypeScript     | 7.0.2                            |
-| Vite           | 8.3.0                            |
-| React          | 19.3.0                           |
-| NestJS         | 12.0.4                           |
-| PostgreSQL     | 18.6（本地 Docker 镜像）         |
-| Oxlint / Oxfmt | 1.85.0 / 0.70.0                  |
+| 工具           | 版本                     |
+| -------------- | ------------------------ |
+| Node.js        | 22.23.2                  |
+| pnpm           | 10.34.5                  |
+| TypeScript     | 7.0.2                    |
+| Vite           | 8.3.0                    |
+| React          | 19.3.0                   |
+| NestJS         | 12.0.4                   |
+| PostgreSQL     | 18.6（本地 Docker 镜像） |
+| Oxlint / Oxfmt | 1.85.0 / 0.70.0          |
 
 `mise.toml` 统一管理 Node.js、pnpm 的精确版本；`engines`、`.npmrc` 和安装前检查校验版本。今后更新补丁版本时须同步这些设置。
 
@@ -39,6 +41,8 @@ compose.yaml    本地 PostgreSQL
 需要安装 mise 并在当前 shell 中激活，以及已启动的 Docker（包含 Compose）。mise 会根据项目配置安装 Node.js 22.23.2 和 pnpm 10.34.5。也可以连接已有 PostgreSQL，此时跳过 `pnpm db:up` 并修改 `DATABASE_URL`。
 
 ```bash
+git clone https://github.com/jackylume/nestjs-agent.git
+cd nestjs-agent
 mise trust
 mise install
 pnpm install --frozen-lockfile
@@ -46,6 +50,8 @@ cp .env.example .env
 pnpm db:up
 pnpm dev
 ```
+
+已有本地仓库时跳过克隆步骤；已有 `.env` 时保留现有配置，按 `.env.example` 补齐缺少的变量。
 
 如果尚未激活 mise，zsh 可先执行 `eval "$(mise activate zsh)"`；也可以通过 `mise exec -- pnpm <命令>` 使用项目指定的工具版本。
 
@@ -59,6 +65,36 @@ pnpm dev
 数据库检查会执行 `SELECT 1`：成功返回 HTTP 200，数据库不可达时返回 HTTP 503。服务启动不要求数据库立即可达，但必须配置 `DATABASE_URL`。`pg` 连接池在服务关闭时释放；目前没有业务表或 ORM。
 
 Compose 的默认账号和密码仅用于本地开发，端口仅绑定本机。修改账号、密码或数据库名时，也需同步 `DATABASE_URL`；已有数据卷不会因环境变量变化而重新初始化。`pnpm db:down` 停止数据库但保留数据卷。
+
+### 环境变量
+
+在项目根目录配置 `.env`，该文件已被 Git 忽略；提交配置示例时修改 `.env.example`。
+
+| 变量                | 示例值                                                | 用途                                    |
+| ------------------- | ----------------------------------------------------- | --------------------------------------- |
+| `PORT`              | `3000`                                                | NestJS 监听端口和 Vite 开发代理目标端口 |
+| `POSTGRES_USER`     | `agent`                                               | Compose 初始化数据库用户名              |
+| `POSTGRES_PASSWORD` | `agent_local`                                         | Compose 初始化数据库密码                |
+| `POSTGRES_DB`       | `agent`                                               | Compose 初始化数据库名                  |
+| `DATABASE_URL`      | `postgresql://agent:agent_local@127.0.0.1:5432/agent` | NestJS 连接数据库的必填地址             |
+
+服务端仅通过 `DATABASE_URL` 建立连接，不会根据 `POSTGRES_*` 自动拼接地址。使用外部 PostgreSQL 时，将其改为对应连接地址即可。
+
+### 验证启动结果
+
+保持 `pnpm dev` 运行，在另一个终端执行以下命令（修改 `PORT` 后替换示例端口）：
+
+```bash
+curl -i http://127.0.0.1:3000/api/health
+curl -i http://127.0.0.1:3000/api/health/db
+```
+
+| 接口                 | 成功响应（HTTP 200）                     | 检查范围                     |
+| -------------------- | ---------------------------------------- | ---------------------------- |
+| `GET /api/health`    | `{"status":"ok"}`                        | API 可响应请求，不检查数据库 |
+| `GET /api/health/db` | `{"status":"ok","database":"connected"}` | PostgreSQL 能执行 `SELECT 1` |
+
+数据库检查失败时返回 HTTP 503，响应中的 `message` 为 `数据库暂不可用`。打开前端 `/health` 页面也可以分别检查这两个接口。
 
 ## 常用命令
 
@@ -97,6 +133,7 @@ apps/web/src/
   pages/           首页、服务状态、404、路由错误兜底
   features/health/  健康检查接口
   lib/http.ts      alova 请求实例与统一 HTTP 错误处理
+  stores/auth.ts   Zustand Token 状态与本地持久化
   test/setup.ts    Vitest DOM 环境初始化
 ```
 
@@ -106,6 +143,26 @@ apps/web/src/
 - Tailwind CSS 通过 Vite 插件接入，负责布局、间距和自定义样式；Ant Design 负责交互组件，通过 `ConfigProvider` 设置中文和主题，通过 `App.useApp()` 获取后续业务需要的 message / notification / modal 实例。
 - 全局 CSS 声明 `theme, base, antd, components, utilities` 的层级顺序，配合 `StyleProvider layer`，让 Tailwind 的重置样式与 Ant Design 组件样式正常共存。Ant Design 主题优先通过 token 调整。
 - Vitest 使用 jsdom、React Testing Library 和 jest-dom。测试替换网络边界的 `fetch`，保留真实 alova 请求处理和页面逻辑；测试文件与对应代码相邻。`pnpm check` 包含测试，Git 推送前仍运行全项目类型检查。
+
+## NestJS 服务端结构
+
+```text
+apps/server/src/
+  main.ts                       创建应用、设置 /api 前缀、启用关闭钩子
+  app.module.ts                 根模块，导入 HealthModule
+  health/
+    health.module.ts            注册 HealthController，导入 DatabaseModule
+    health.controller.ts        提供 API 与数据库健康检查接口
+  database/
+    database.module.ts          注册并导出 DatabaseService
+    database.service.ts         管理 pg 连接池、执行连通检查、关闭时释放连接
+```
+
+模块依赖为 `AppModule → HealthModule → DatabaseModule`。`HealthController` 通过构造函数注入 `DatabaseService`；`DatabaseModule` 使用 `exports` 暴露服务，`HealthModule` 使用 `imports` 获得该依赖。其他业务模块需要数据库时，同样导入 `DatabaseModule`，无需重复注册 `DatabaseService`。
+
+连接池最多使用 10 个连接，连接超时和查询超时均设为 3 秒。前后端健康检查的响应类型统一定义在 `packages/shared/src/index.ts`。
+
+服务端当前监听 `127.0.0.1`，适用于本机访问或同机反向代理；部署到容器或需要外部直连时，需要根据部署方式调整 `main.ts` 中的监听地址。
 
 ## 编译约定
 
@@ -162,3 +219,15 @@ chore: 更新开发依赖
 支持 `feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`revert` 等标准类型。`update code` 这样的消息会被拒绝。
 
 在项目根目录运行 `pnpm lint:staged` 可以手动检查暂存文件。Git hooks 需要能找到 mise 管理的 Node.js 和 pnpm；终端需激活 mise，图形 Git 客户端也需能访问对应工具。CI 安装依赖时可设置 `HUSKY=0` 跳过 hooks 安装，并单独运行 `pnpm check` 和 `pnpm build`。
+
+## 常见问题
+
+| 现象                                           | 排查方法                                                                                                              |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| 安装依赖提示 Node.js 或 pnpm 版本不匹配        | 在项目根目录执行 `mise install`，确认 shell 已激活 mise，再运行 `node --version` 和 `pnpm --version` 核对版本         |
+| 服务端提示缺少 `DATABASE_URL`                  | 检查根目录 `.env` 是否存在、连接地址是否为空，然后重启服务                                                            |
+| `/api/health` 正常但 `/api/health/db` 返回 503 | 执行 `docker compose ps` 和 `docker compose logs postgres` 检查数据库，再核对 `DATABASE_URL` 中的端口、账号和数据库名 |
+| 前端提示 5173 端口被占用                       | Vite 配置了 `strictPort`，不会自动换端口；停止占用该端口的进程后重试                                                  |
+| API 无法启动或前端代理连接失败                 | 检查服务端终端输出和 3000 端口占用情况；如需修改端口，更新根目录 `.env` 的 `PORT` 后重启 `pnpm dev`                   |
+| 修改 Compose 账号或密码后连接失败              | 已有数据卷保留原有数据库配置；使用原有凭据连接并修改数据库账号，同时同步 `.env`                                       |
+| 生产环境刷新 `/health` 返回 404                | 检查静态服务器是否将前端路由回退到 `index.html`，并为 `/api` 单独配置反向代理                                         |
