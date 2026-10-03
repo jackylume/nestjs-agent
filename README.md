@@ -15,7 +15,8 @@
 | Node.js        | 22.23.2                  |
 | pnpm           | 10.34.5                  |
 | TypeScript     | 7.0.2                    |
-| Vite           | 8.3.0                    |
+| Vite+          | 1.0.0                    |
+| Vite           | 8.3.1（由 Vite+ 提供）   |
 | React          | 19.3.0                   |
 | NestJS         | 12.0.4                   |
 | PostgreSQL     | 18.6（本地 Docker 镜像） |
@@ -27,13 +28,14 @@
 
 ```text
 apps/
-  web/          React 前端，Vite 开发服务器与生产构建
+  web/          React 前端，Vite+ 开发服务器与生产构建
   server/       NestJS API，TypeScript 7 编译为 Node.js ESM
 packages/
   shared/       前后端共享的 TypeScript 类型，只允许 import type
 scripts/
   check-env.mjs Node.js / pnpm 版本检查
 compose.yaml    本地 PostgreSQL
+vite.config.ts  Vite+ 的检查、格式化和暂存文件配置
 ```
 
 ## 本地启动
@@ -100,29 +102,27 @@ curl -i http://127.0.0.1:3000/api/health/db
 
 ```bash
 pnpm dev                         # 并行启动前后端，服务端修改后重新构建并重启
-pnpm check                       # Oxlint、Oxfmt、TypeScript 检查及 Vitest 测试
+pnpm check                       # Vite+ 静态检查、tsc 类型检查及 Vitest 测试
 pnpm test                        # 运行 workspace 中的测试
 pnpm test:watch                  # 前端 Vitest 监听模式
 pnpm format                      # Oxfmt 格式化
 pnpm lint:fix                    # Oxlint 自动修复
-pnpm build                       # 类型检查，前端使用 Vite 8，服务端使用 tsc 构建
+pnpm build                       # 类型检查，前端使用 vp build，服务端使用 tsc 构建
 pnpm --filter @nestjs-agent/server start
 pnpm --filter @nestjs-agent/web preview
 ```
 
-前端产物位于 `apps/web/dist`，服务端产物位于 `apps/server/dist`。服务端构建保留 npm 依赖为外部依赖，运行时仍需要安装 workspace 的依赖。生产环境需由 Web 服务器托管前端静态文件并将 `/api` 转发到 NestJS；非 API 的前端路由（如 `/health`）需回退到 `index.html`，保证直接访问和刷新可用。`vite preview` 仅用于静态产物预览，不提供这里的开发 API 代理。
+前端产物位于 `apps/web/dist`，服务端产物位于 `apps/server/dist`。服务端构建保留 npm 依赖为外部依赖，运行时仍需要安装 workspace 的依赖。生产环境需由 Web 服务器托管前端静态文件并将 `/api` 转发到 NestJS；非 API 的前端路由（如 `/health`）需回退到 `index.html`，保证直接访问和刷新可用。`vp preview` 仅用于静态产物预览，不提供这里的开发 API 代理。
 
-## Turbo 任务编排
+## Vite+ 任务编排
 
-pnpm 负责依赖和 workspace 链接，Turbo 编排 `dev`、`build`、`typecheck`、`test` 与 `test:watch`；根目录 pnpm 命令入口保持一致。Oxlint、Oxfmt 继续全量执行。
+pnpm 继续负责依赖和 workspace 链接；项目本地的 Vite+ 提供 `vp` 命令，根目录 pnpm 脚本使用 `vp run` 编排各包任务。直接调用内置命令时可使用 `pnpm exec vp check`；只运行前端测试时使用 `pnpm exec vp -C apps/web test`。
 
-- `build` 先完成当前包类型检查及依赖包构建，再缓存 `dist/**`。
-- `typecheck` 按包依赖顺序执行；`test` 先完成类型检查。`shared` 虽然没有构建产物，其类型检查任务仍会将源码变化传递给前后端任务的缓存键。
-- 根目录 `tsconfig.base.json`、`.env` / `.env.*` 与 `NODE_ENV`、`VITE_*`、`PORT` 参与缓存计算。Turbo 不负责加载 `.env`，仍由 Vite 与 Node 加载。
-- `dev`、`test:watch` 是常驻任务，不缓存；`dev` 允许传入 shell 中的 `DATABASE_URL`。
-- 默认使用本地 `.turbo` 缓存，不配置远程缓存。pre-push 仍检查全部包，输入未变时允许复用成功结果。
+- `pnpm check` 依次运行 `vp check`、各包 `tsc` 类型检查和现有测试；`pnpm build` 先检查类型，再运行前端 Vite 构建与服务端 `tsc` 构建。
+- `vp run` 按 workspace 依赖顺序执行包脚本。类型检查、测试和构建开启本地任务缓存；开发与测试监听并行运行，不缓存。Vite+ 自动追踪任务读取的文件、环境变量及生成的文件。
+- 根目录 `vite.config.ts` 管理静态检查、格式化和暂存文件规则；`apps/web/vite.config.ts` 管理前端开发服务器、构建和测试。NestJS 仍由 `tsc` 编译为 Node.js ESM。
 
-可用 `pnpm exec turbo run build --dry=json` 查看任务图，使用 `pnpm exec turbo run build --force` 强制重新执行。
+可用 `pnpm exec vp run --filter '@nestjs-agent/*' --cache build -v` 查看任务执行与缓存详情。
 
 ## React 前端基建
 
@@ -196,15 +196,15 @@ TypeScript 7 使用官方 `typescript` 包和 `tsc` 做类型检查。前端使�
 
 服务端开发命令先完成一次编译，再并行运行 `tsc --watch` 和 `node --watch`，源码变更编译成功后自动重启服务。编译错误时不输出新的 JavaScript；生产构建会先清理 `dist`。
 
-Oxlint 负责代码检查，Oxfmt 负责格式化，配置集中在根目录。
+Vite+ 的 `vp check` 集成 Oxlint、Oxfmt 和类型感知检查；完整类型检查继续使用各包的 `tsc` 脚本。相关规则集中在根目录 `vite.config.ts`。
 
-Cursor / VS Code 请安装项目推荐的官方 Oxc 扩展（`oxc.oxc-vscode`）。项目已配置保存时使用 Oxfmt，与 `pnpm format` 共用 `.oxfmtrc.json` 的单引号规则。
+Cursor / VS Code 请安装项目推荐的官方 Oxc 扩展（`oxc.oxc-vscode`）。项目已配置保存时使用 Oxfmt，与 `pnpm format` 共用根目录 `vite.config.ts` 的单引号规则。
 
 ## Git 提交检查
 
-安装依赖时，`prepare` 自动启用 Husky hooks。直接下载项目目录而非通过 Git 克隆时，先执行 `git init`，再执行 `pnpm prepare`。
+安装依赖时，`prepare` 通过 `vp config` 启用 Vite+ hooks。直接下载项目目录而非通过 Git 克隆时，先执行 `git init`，再执行 `pnpm prepare`。
 
-- `pre-commit`：lint-staged 只处理暂存文件，使用 Oxfmt 自动格式化，使用 Oxlint 检查 JavaScript / TypeScript；格式化结果自动加入暂存区，检查失败则阻止提交。
+- `pre-commit`：`vp staged` 只处理暂存文件，使用 Oxfmt 自动格式化，使用 Oxlint 检查 JavaScript / TypeScript；格式化结果自动加入暂存区，检查失败则阻止提交。
 - `commit-msg`：commitlint 按 Conventional Commits 校验提交信息。
 - `pre-push`：运行 `pnpm typecheck`，使用 TypeScript 7 检查整个 workspace，失败则阻止推送。
 
@@ -218,7 +218,7 @@ chore: 更新开发依赖
 
 支持 `feat`、`fix`、`docs`、`style`、`refactor`、`perf`、`test`、`build`、`ci`、`chore`、`revert` 等标准类型。`update code` 这样的消息会被拒绝。
 
-在项目根目录运行 `pnpm lint:staged` 可以手动检查暂存文件。Git hooks 需要能找到 mise 管理的 Node.js 和 pnpm；终端需激活 mise，图形 Git 客户端也需能访问对应工具。CI 安装依赖时可设置 `HUSKY=0` 跳过 hooks 安装，并单独运行 `pnpm check` 和 `pnpm build`。
+在项目根目录运行 `pnpm lint:staged` 可以手动检查暂存文件。Git hooks 需要能找到 mise 管理的 Node.js 和 pnpm；终端需激活 mise，图形 Git 客户端也需能访问对应工具。CI 安装依赖时可设置 `VP_GIT_HOOKS=0` 跳过 hooks 安装，并单独运行 `pnpm check` 和 `pnpm build`。
 
 ## 常见问题
 

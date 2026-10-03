@@ -2,6 +2,8 @@
   "editor.defaultFormatter": "oxc.oxc-vscode",
   "editor.formatOnSave": true,
   "oxc.enable.oxfmt": true,
+  "oxc.disableNestedConfig": true,
+  "oxc.fmt.disableNestedConfig": true,
   "[javascript]": {
     "editor.defaultFormatter": "oxc.oxc-vscode"
   },

@@ -2,19 +2,22 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createMemoryRouter } from 'react-router';
 import { RouterProvider } from 'react-router/dom';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { AppProviders } from './providers';
 import { routes } from './routes';
 
 const fetchMock = vi.fn<typeof fetch>();
 
+function isDatabaseHealthRequest(input: RequestInfo | URL): boolean {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  return url.endsWith('/health/db');
+}
+
 beforeEach(() => {
   fetchMock.mockReset();
   fetchMock.mockImplementation(async (input) =>
     Response.json(
-      String(input).endsWith('/health/db')
-        ? { status: 'ok', database: 'connected' }
-        : { status: 'ok' },
+      isDatabaseHealthRequest(input) ? { status: 'ok', database: 'connected' } : { status: 'ok' },
     ),
   );
   vi.stubGlobal('fetch', fetchMock);
@@ -47,7 +50,7 @@ describe('应用路由和服务状态', () => {
     const user = userEvent.setup();
     let databaseAvailable = false;
     fetchMock.mockImplementation(async (input) => {
-      if (String(input).endsWith('/health/db')) {
+      if (isDatabaseHealthRequest(input)) {
         return databaseAvailable
           ? Response.json({ status: 'ok', database: 'connected' })
           : Response.json({ message: '数据库暂不可用' }, { status: 503 });

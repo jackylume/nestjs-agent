@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import { getHealth } from '@/features/health/api';
 import { useAuthStore } from '@/stores/auth';
 import { http } from './http';
