@@ -4,22 +4,30 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm build && concurrently -k -n build,server \"tsc -p tsconfig.json --watch --preserveWatchOutput\" \"node --watch --env-file-if-exists=../../.env dist/main.js\"",
-    "build": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\" && tsc -p tsconfig.json",
+    "postinstall": "pnpm db:generate",
+    "dev": "pnpm build && concurrently -k -n build,server \"pnpm build:watch\" \"pnpm start:watch\"",
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "pnpm db:generate && pnpm clean && tsc -p tsconfig.json",
+    "build:watch": "tsc -p tsconfig.json --watch --preserveWatchOutput",
     "start": "node --env-file-if-exists=../../.env dist/main.js",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "start:watch": "node --watch --env-file-if-exists=../../.env dist/main.js",
+    "typecheck": "pnpm db:generate && tsc -p tsconfig.json --noEmit",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@nestjs-agent/shared": "workspace:*",
     "@nestjs/common": "12.0.4",
     "@nestjs/core": "12.0.4",
     "@nestjs/platform-express": "12.0.4",
-    "pg": "8.23.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2"
   },
   "devDependencies": {
-    "@types/pg": "8.23.1",
-    "concurrently": "10.0.5"
+    "concurrently": "10.0.5",
+    "prisma": "7.10.0"
   }
 }

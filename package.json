@@ -19,7 +19,10 @@
     "format:check": "vp fmt --check .",
     "check": "vp check && pnpm test",
     "db:up": "docker compose up -d --wait postgres",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "db:generate": "pnpm --filter @nestjs-agent/server db:generate",
+    "db:migrate": "pnpm --filter @nestjs-agent/server db:migrate",
+    "db:deploy": "pnpm --filter @nestjs-agent/server db:deploy"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.3",

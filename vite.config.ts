@@ -5,14 +5,19 @@ export default defineConfig({
     singleQuote: true,
     semi: true,
     printWidth: 100,
-    ignorePatterns: ['**/dist/**', '**/node_modules/**', 'pnpm-lock.yaml'],
+    ignorePatterns: [
+      '**/dist/**',
+      '**/node_modules/**',
+      'apps/server/src/generated/prisma/**',
+      'pnpm-lock.yaml',
+    ],
   },
   lint: {
     plugins: ['typescript', 'react', 'jsx-a11y'],
     categories: {
       correctness: 'error',
     },
-    ignorePatterns: ['**/dist/**', '**/node_modules/**'],
+    ignorePatterns: ['**/dist/**', '**/node_modules/**', 'apps/server/src/generated/prisma/**'],
     options: {
       typeAware: true,
       typeCheck: true,

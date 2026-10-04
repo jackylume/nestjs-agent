@@ -2,7 +2,7 @@
 
 基于 pnpm workspace 的 TypeScript monorepo。React 负责前端，NestJS 提供 API，PostgreSQL 存储数据。
 
-仓库地址：[jackylume/nestjs-agent](https://github.com/jackylume/nestjs-agent)。当前包含前端页面与请求基建、Token 状态管理、API 存活检查和数据库连通检查，尚未实现业务接口、登录鉴权或数据库迁移。
+仓库地址：[jackylume/nestjs-agent](https://github.com/jackylume/nestjs-agent)。当前包含前端页面与请求基建、Token 状态管理、API 存活检查、数据库连通检查和 Prisma 数据访问与迁移基建，尚未实现业务接口、登录鉴权或业务数据模型。
 
 ## 技术版本
 
@@ -19,6 +19,7 @@
 | Vite           | 8.3.1（由 Vite+ 提供）   |
 | React          | 19.3.0                   |
 | NestJS         | 12.0.4                   |
+| Prisma         | 7.10.0                   |
 | PostgreSQL     | 18.6（本地 Docker 镜像） |
 | Oxlint / Oxfmt | 1.85.0 / 0.70.0          |
 
@@ -64,7 +65,9 @@ pnpm dev
 
 前端通过 Vite 将 `/api` 代理到 NestJS。根目录 `.env` 中的 `PORT` 同时供前端代理和服务端读取，修改后重启开发命令。只有 `VITE_` 前缀变量会公开给浏览器，不要给数据库凭据添加此前缀。
 
-数据库检查会执行 `SELECT 1`：成功返回 HTTP 200，数据库不可达时返回 HTTP 503。服务启动不要求数据库立即可达，但必须配置 `DATABASE_URL`。`pg` 连接池在服务关闭时释放；目前没有业务表或 ORM。
+数据库检查通过 Prisma 执行 `SELECT 1`：成功返回 HTTP 200，数据库不可达时返回 HTTP 503。服务启动不要求数据库立即可达，但必须配置 `DATABASE_URL`。服务关闭时调用 Prisma 的 `$disconnect()` 释放连接；目前没有业务表。
+
+Prisma 负责类型安全的业务查询和数据库迁移，PostgreSQL 连接通过 `@prisma/adapter-pg` 适配器建立。`pg` 由 `@prisma/adapter-pg` 作为间接依赖安装，项目无需直接声明，调用关系为 `NestJS → Prisma Client → @prisma/adapter-pg → pg → PostgreSQL`。
 
 Compose 的默认账号和密码仅用于本地开发，端口仅绑定本机。修改账号、密码或数据库名时，也需同步 `DATABASE_URL`；已有数据卷不会因环境变量变化而重新初始化。`pnpm db:down` 停止数据库但保留数据卷。
 
@@ -108,6 +111,9 @@ pnpm test:watch                  # 前端 Vitest 监听模式
 pnpm format                      # Oxfmt 格式化
 pnpm lint:fix                    # Oxlint 自动修复
 pnpm build                       # 类型检查，前端使用 vp build，服务端使用 tsc 构建
+pnpm db:generate                 # 根据 Prisma schema 生成 Client
+pnpm db:migrate --name <name>    # 根据 schema 创建并应用本地开发迁移
+pnpm db:deploy                   # 部署已提交的迁移
 pnpm --filter @nestjs-agent/server start
 pnpm --filter @nestjs-agent/web preview
 ```
@@ -155,7 +161,8 @@ apps/server/src/
     health.controller.ts        提供 API 与数据库健康检查接口
   database/
     database.module.ts          注册并导出 DatabaseService
-    database.service.ts         管理 pg 连接池、执行连通检查、关闭时释放连接
+    database.service.ts         继承 PrismaClient、执行连通检查、关闭时释放连接
+  generated/prisma/             Prisma 生成的 Client，不提交到 Git
 ```
 
 模块依赖为 `AppModule → HealthModule → DatabaseModule`。`HealthController` 通过构造函数注入 `DatabaseService`；`DatabaseModule` 使用 `exports` 暴露服务，`HealthModule` 使用 `imports` 获得该依赖。其他业务模块需要数据库时，同样导入 `DatabaseModule`，无需重复注册 `DatabaseService`。
@@ -163,6 +170,21 @@ apps/server/src/
 连接池最多使用 10 个连接，连接超时和查询超时均设为 3 秒。前后端健康检查的响应类型统一定义在 `packages/shared/src/index.ts`。
 
 服务端当前监听 `127.0.0.1`，适用于本机访问或同机反向代理；部署到容器或需要外部直连时，需要根据部署方式调整 `main.ts` 中的监听地址。
+
+### Prisma 数据模型与迁移
+
+`apps/server/prisma/schema.prisma` 定义数据模型和 Client 生成配置；`apps/server/prisma.config.ts` 加载根目录 `.env`，配置数据库地址和迁移目录。Client 生成到 `apps/server/src/generated/prisma`，随服务端 `tsc` 编译到 `dist`。安装依赖、服务端构建和类型检查时会自动生成 Client，也可以手动执行 `pnpm db:generate`；这些操作不会创建数据库表或应用迁移。
+
+目前 schema 没有业务 `model`，也没有迁移文件，无需创建空迁移。以后新增或调整 `model` 后，在本地数据库可用时执行：
+
+```bash
+pnpm db:migrate --name <name>
+pnpm db:generate
+```
+
+将 `<name>` 替换为本次变更的名称。开发迁移会生成 SQL 文件并应用到本地数据库；提交 schema 和 `apps/server/prisma/migrations` 中的迁移文件，生成的 Client 不提交。Prisma 7 的 `migrate dev` 不会自动重新生成 Client，因此 schema 变更后需要生成并重启服务端，详见 [Prisma CLI 文档](https://www.prisma.io/docs/orm/v7/reference/prisma-cli-reference#migrate-dev)。
+
+业务模块继续导入 `DatabaseModule` 并注入 `DatabaseService`，即可使用生成的模型查询方法。部署时先配置目标数据库的 `DATABASE_URL`，再执行 `pnpm db:deploy` 应用已提交的迁移，随后启动服务。
 
 ## 编译约定
 

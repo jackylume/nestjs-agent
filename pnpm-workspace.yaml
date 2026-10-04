@@ -8,8 +8,8 @@ catalog:
 
 onlyBuiltDependencies:
   - '@nestjs/core'
-overrides:
-  vite@*: 'catalog:'
+  - '@prisma/engines'
+  - prisma
 peerDependencyRules:
   allowAny:
     - vite
