@@ -9,6 +9,6 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "vp check --no-fmt --no-lint"
   }
 }

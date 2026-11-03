@@ -12,5 +12,5 @@
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.app.tsbuildinfo"
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.*", "src/**/*.spec.*", "src/test"]
+  "exclude": ["src/**/*.test.*", "src/**/*.spec.*"]
 }

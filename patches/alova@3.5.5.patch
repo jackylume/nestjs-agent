@@ -1,0 +1,174 @@
+diff --git a/dist/clienthook/index.common.cjs b/dist/clienthook/index.common.cjs
+index 404a1e8912339737d34e2ec5c2810593dbd0535d..4e068266c092aa4793fb6f1017ed24987a63a83c 100644
+--- a/dist/clienthook/index.common.cjs
++++ b/dist/clienthook/index.common.cjs
+@@ -22,10 +22,11 @@ const checkMethodRole = ({ meta }, metaMatches) => {
+ 	}
+ 	return _alova_shared.falseValue;
+ };
+-const waitForTokenRefreshed = (method, waitingList) => (0, _alova_shared.newInstance)(_alova_shared.PromiseCls, (resolve) => {
++const waitForTokenRefreshed = (method, waitingList) => (0, _alova_shared.newInstance)(_alova_shared.PromiseCls, (resolve, reject) => {
+ 	(0, _alova_shared.pushItem)(waitingList, {
+ 		method,
+-		resolve
++		resolve,
++		reject
+ 	});
+ });
+ const callHandlerIfMatchesMeta = (method, authorizationInterceptor, defaultMeta, response) => {
+@@ -35,7 +36,7 @@ const refreshTokenIfExpired = async (method, waitingList, updateRefreshStatus, h
+ 	const fromResponse = (0, _alova_shared.len)(handlerParams) >= 2;
+ 	let isExpired = refreshToken?.isExpired(...handlerParams);
+ 	if ((0, _alova_shared.instanceOf)(isExpired, _alova_shared.PromiseCls)) isExpired = await isExpired;
+-	if (isExpired) try {
++	if (isExpired) {
+ 		let intentToRefreshToken = _alova_shared.trueValue;
+ 		if (fromResponse && tokenRefreshing) {
+ 			intentToRefreshToken = _alova_shared.falseValue;
+@@ -43,21 +44,26 @@ const refreshTokenIfExpired = async (method, waitingList, updateRefreshStatus, h
+ 		}
+ 		if (intentToRefreshToken) {
+ 			updateRefreshStatus(_alova_shared.trueValue);
+-			await refreshToken?.handler(...handlerParams);
+-			updateRefreshStatus(_alova_shared.falseValue);
+-			(0, _alova_shared.forEach)(waitingList, ({ resolve }) => resolve());
++			try {
++				await refreshToken?.handler(...handlerParams);
++				(0, _alova_shared.forEach)((0, _alova_shared.splice)(waitingList, 0, (0, _alova_shared.len)(waitingList)), ({ resolve }) => resolve());
++			} catch (error) {
++				(0, _alova_shared.forEach)((0, _alova_shared.splice)(waitingList, 0, (0, _alova_shared.len)(waitingList)), ({ reject }) => reject(error));
++				throw error;
++			} finally {
++				updateRefreshStatus(_alova_shared.falseValue);
++			}
+ 		}
+ 		if (fromResponse) {
+ 			const { config } = method;
+ 			const methodTransformData = config.transform;
+ 			config.transform = _alova_shared.undefinedValue;
+-			const resentData = await method;
+-			config.transform = methodTransformData;
+-			return resentData;
++			try {
++				return { data: await method };
++			} finally {
++				config.transform = methodTransformData;
++			}
+ 		}
+-	} finally {
+-		updateRefreshStatus(_alova_shared.falseValue);
+-		(0, _alova_shared.splice)(waitingList, 0, (0, _alova_shared.len)(waitingList));
+ 	}
+ };
+ const onResponded2Record = (onRespondedHandlers) => {
+@@ -142,7 +148,7 @@ const createServerTokenAuthentication = ({ visitorMeta, login, logout, refreshTo
+ 					const dataResent = await refreshTokenIfExpired(method, waitingList, (refreshing) => {
+ 						tokenRefreshing = refreshing;
+ 					}, [response, method], refreshTokenOnSuccess, tokenRefreshing);
+-					if (dataResent) return dataResent;
++					if (dataResent) return dataResent.data;
+ 				}
+ 				await callHandlerIfMatchesMeta(method, login, defaultLoginMeta, response);
+ 				await callHandlerIfMatchesMeta(method, logout, defaultLogoutMeta, response);
+@@ -153,7 +159,7 @@ const createServerTokenAuthentication = ({ visitorMeta, login, logout, refreshTo
+ 					const dataResent = await refreshTokenIfExpired(method, waitingList, (refreshing) => {
+ 						tokenRefreshing = refreshing;
+ 					}, [error, method], refreshTokenOnError, tokenRefreshing);
+-					if (dataResent) return dataResent;
++					if (dataResent) return dataResent.data;
+ 				}
+ 				return (respondedRecord.onError || _alova_shared.noop)(error, method);
+ 			}
+diff --git a/dist/clienthook/index.esm.js b/dist/clienthook/index.esm.js
+index 8d8e2ba4a5e4b6a8f1e8a74978cff61e57a6ee6c..967d23e95a1725998eb6cd00f7769badfdd4d997 100644
+--- a/dist/clienthook/index.esm.js
++++ b/dist/clienthook/index.esm.js
+@@ -21,10 +21,11 @@ const checkMethodRole = ({ meta }, metaMatches) => {
+ 	}
+ 	return falseValue;
+ };
+-const waitForTokenRefreshed = (method, waitingList) => newInstance(PromiseCls, (resolve) => {
++const waitForTokenRefreshed = (method, waitingList) => newInstance(PromiseCls, (resolve, reject) => {
+ 	pushItem(waitingList, {
+ 		method,
+-		resolve
++		resolve,
++		reject
+ 	});
+ });
+ const callHandlerIfMatchesMeta = (method, authorizationInterceptor, defaultMeta, response) => {
+@@ -34,7 +35,7 @@ const refreshTokenIfExpired = async (method, waitingList, updateRefreshStatus, h
+ 	const fromResponse = len(handlerParams) >= 2;
+ 	let isExpired = refreshToken?.isExpired(...handlerParams);
+ 	if (instanceOf(isExpired, PromiseCls)) isExpired = await isExpired;
+-	if (isExpired) try {
++	if (isExpired) {
+ 		let intentToRefreshToken = trueValue;
+ 		if (fromResponse && tokenRefreshing) {
+ 			intentToRefreshToken = falseValue;
+@@ -42,21 +43,26 @@ const refreshTokenIfExpired = async (method, waitingList, updateRefreshStatus, h
+ 		}
+ 		if (intentToRefreshToken) {
+ 			updateRefreshStatus(trueValue);
+-			await refreshToken?.handler(...handlerParams);
+-			updateRefreshStatus(falseValue);
+-			forEach(waitingList, ({ resolve }) => resolve());
++			try {
++				await refreshToken?.handler(...handlerParams);
++				forEach(splice(waitingList, 0, len(waitingList)), ({ resolve }) => resolve());
++			} catch (error) {
++				forEach(splice(waitingList, 0, len(waitingList)), ({ reject }) => reject(error));
++				throw error;
++			} finally {
++				updateRefreshStatus(falseValue);
++			}
+ 		}
+ 		if (fromResponse) {
+ 			const { config } = method;
+ 			const methodTransformData = config.transform;
+ 			config.transform = undefinedValue;
+-			const resentData = await method;
+-			config.transform = methodTransformData;
+-			return resentData;
++			try {
++				return { data: await method };
++			} finally {
++				config.transform = methodTransformData;
++			}
+ 		}
+-	} finally {
+-		updateRefreshStatus(falseValue);
+-		splice(waitingList, 0, len(waitingList));
+ 	}
+ };
+ const onResponded2Record = (onRespondedHandlers) => {
+@@ -141,7 +147,7 @@ const createServerTokenAuthentication = ({ visitorMeta, login, logout, refreshTo
+ 					const dataResent = await refreshTokenIfExpired(method, waitingList, (refreshing) => {
+ 						tokenRefreshing = refreshing;
+ 					}, [response, method], refreshTokenOnSuccess, tokenRefreshing);
+-					if (dataResent) return dataResent;
++					if (dataResent) return dataResent.data;
+ 				}
+ 				await callHandlerIfMatchesMeta(method, login, defaultLoginMeta, response);
+ 				await callHandlerIfMatchesMeta(method, logout, defaultLogoutMeta, response);
+@@ -152,7 +158,7 @@ const createServerTokenAuthentication = ({ visitorMeta, login, logout, refreshTo
+ 					const dataResent = await refreshTokenIfExpired(method, waitingList, (refreshing) => {
+ 						tokenRefreshing = refreshing;
+ 					}, [error, method], refreshTokenOnError, tokenRefreshing);
+-					if (dataResent) return dataResent;
++					if (dataResent) return dataResent.data;
+ 				}
+ 				return (respondedRecord.onError || noop)(error, method);
+ 			}
+diff --git a/typings/clienthook/hooks/tokenAuthentication.d.ts b/typings/clienthook/hooks/tokenAuthentication.d.ts
+index 07d124b450a060f720f92db8e53d9845495b328b..b8d01eab7f6d103faf9fa683362a842febb44f36 100644
+--- a/typings/clienthook/hooks/tokenAuthentication.d.ts
++++ b/typings/clienthook/hooks/tokenAuthentication.d.ts
+@@ -98,6 +98,7 @@ export interface TokenAuthenticationResult<SH extends StatesHook<any>, RA extend
+   waitingList: {
+     method: Method<StateHookAdapter2AG<SH, RA>>;
+     resolve: () => void;
++    reject: (reason?: unknown) => void;
+   }[];
+ }
+ 

@@ -1,12 +1,11 @@
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { loadEnv, lazyPlugins } from 'vite-plus';
+import { lazyPlugins } from 'vite-plus';
 import { defineConfig } from 'vite-plus';
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(() => {
   const envDir = fileURLToPath(new URL('../..', import.meta.url));
-  const env = loadEnv(mode, envDir, '');
 
   return {
     plugins: lazyPlugins(() => [react(), tailwindcss()]),
@@ -17,18 +16,17 @@ export default defineConfig(({ mode }) => {
     },
     envDir,
     test: {
+      include: ['tests/**/*.{test,spec}.{ts,tsx}'],
       environment: 'jsdom',
-      setupFiles: ['./src/test/setup.ts'],
+      setupFiles: ['./tests/setup.ts'],
       clearMocks: true,
       restoreMocks: true,
       unstubGlobals: true,
     },
     server: {
+      host: '127.0.0.1',
       port: 5173,
       strictPort: true,
-      proxy: {
-        '/api': `http://127.0.0.1:${env.PORT || 3000}`,
-      },
     },
   };
 });

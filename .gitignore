@@ -3,7 +3,6 @@ dist/
 apps/server/src/generated/prisma/
 coverage/
 .vitest/
-.turbo/
 .vite-hooks/_/
 .env
 .env.*

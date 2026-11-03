@@ -3,13 +3,16 @@ packages:
   - packages/*
 
 catalog:
-  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
-  vite-plus: 1.0.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.4.0
 
 onlyBuiltDependencies:
   - '@nestjs/core'
   - '@prisma/engines'
+  - argon2
   - prisma
+patchedDependencies:
+  alova@3.5.5: patches/alova@3.5.5.patch
 peerDependencyRules:
   allowAny:
     - vite

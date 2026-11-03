@@ -4,6 +4,6 @@
     "types": ["vite-plus/client", "node"],
     "tsBuildInfoFile": "./node_modules/.cache/tsconfig.test.tsbuildinfo"
   },
-  "include": ["src/**/*.test.*", "src/**/*.spec.*", "src/test"],
+  "include": ["tests"],
   "exclude": []
 }

@@ -17,9 +17,13 @@
     "lint:fix": "vp lint --fix .",
     "format": "vp fmt --write .",
     "format:check": "vp fmt --check .",
-    "check": "vp check && pnpm test",
+    "check": "pnpm db:generate && vp check && vp run --filter '@nestjs-agent/*' --cache test",
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
+    "redis:up": "docker compose up -d --wait redis",
+    "redis:down": "docker compose stop redis",
+    "nginx:up": "docker compose up -d --wait nginx",
+    "nginx:down": "docker compose stop nginx",
     "db:generate": "pnpm --filter @nestjs-agent/server db:generate",
     "db:migrate": "pnpm --filter @nestjs-agent/server db:migrate",
     "db:deploy": "pnpm --filter @nestjs-agent/server db:deploy"
@@ -32,8 +36,10 @@
     "vite-plus": "catalog:"
   },
   "engines": {
-    "node": "22.23.2",
-    "pnpm": "10.34.5"
+    "node": "22.23.4",
+    "npm": "use pnpm",
+    "pnpm": "10.34.9",
+    "yarn": "use pnpm"
   },
-  "packageManager": "pnpm@10.34.5"
+  "packageManager": "pnpm@10.34.9"
 }
